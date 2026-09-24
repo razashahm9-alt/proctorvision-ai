@@ -1,0 +1,52 @@
+# Python environments
+.venv/
+venv/
+env/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime detection data
+evidence/
+logs/
+runs/
+
+# Generated recordings and databases
+*.avi
+*.mp4
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# AI model weights
+*.pt
+*.onnx
+*.engine
+
+# Frontend-generated files
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
