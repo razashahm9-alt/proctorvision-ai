@@ -1,11 +1,15 @@
 """FastAPI entry point for ProctorVision AI."""
 
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .api.detection import get_detector, router as detection_router
 from .core.config import settings
+from .database import init_db
 
 
 class HealthResponse(BaseModel):
@@ -15,10 +19,19 @@ class HealthResponse(BaseModel):
     detector: str
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Initialize persistent resources when FastAPI starts."""
+
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="ProctorVision AI API",
     description="Backend API for real-time prohibited-device monitoring.",
     version=settings.app_version,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
