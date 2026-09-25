@@ -1,16 +1,14 @@
-"""Initial FastAPI entry point for ProctorVision AI."""
+"""FastAPI entry point for ProctorVision AI."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-
-APP_VERSION = "0.1.0"
+from .api.detection import get_detector, router as detection_router
+from .core.config import settings
 
 
 class HealthResponse(BaseModel):
-    """Response returned by the backend health endpoint."""
-
     status: str
     application: str
     version: str
@@ -20,7 +18,7 @@ class HealthResponse(BaseModel):
 app = FastAPI(
     title="ProctorVision AI API",
     description="Backend API for real-time prohibited-device monitoring.",
-    version=APP_VERSION,
+    version=settings.app_version,
 )
 
 app.add_middleware(
@@ -34,11 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(detection_router, prefix="/api")
+
 
 @app.get("/", tags=["System"])
 def root() -> dict[str, str]:
-    """Provide a small landing response for the API root."""
-
     return {
         "application": "ProctorVision AI API",
         "message": "Backend is running. Open /docs for interactive API documentation.",
@@ -47,11 +45,9 @@ def root() -> dict[str, str]:
 
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
 def health_check() -> HealthResponse:
-    """Report whether the initial backend service is available."""
-
     return HealthResponse(
         status="healthy",
-        application="ProctorVision AI",
-        version=APP_VERSION,
-        detector="not_loaded",
+        application=settings.app_name,
+        version=settings.app_version,
+        detector="loaded" if get_detector().loaded else "not_loaded",
     )
