@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .api.detection import get_detector, router as detection_router
+from .api.monitoring import router as monitoring_router
 from .core.config import settings
 from .database import init_db
 
@@ -46,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(detection_router, prefix="/api")
+app.include_router(monitoring_router, prefix="/api")
 
 
 @app.get("/", tags=["System"])

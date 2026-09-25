@@ -20,6 +20,6 @@ def test_health_check() -> None:
     assert response.json() == {
         "status": "healthy",
         "application": "ProctorVision AI",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "detector": "not_loaded",
     }
