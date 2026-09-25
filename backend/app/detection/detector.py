@@ -11,20 +11,8 @@ import numpy as np
 from ultralytics import YOLO
 
 from ..core.config import Settings
+from .constants import CLASS_THRESHOLDS, DISPLAY_NAMES
 from .schemas import BoundingBox, DetectionItem, FrameDetectionResponse
-
-
-DISPLAY_NAMES = {
-    "cell phone": "Mobile Phone",
-    "laptop": "Laptop / Computer",
-    "tv": "TV / LCD / Monitor",
-}
-
-CLASS_THRESHOLDS = {
-    "cell phone": 0.30,
-    "laptop": 0.35,
-    "tv": 0.35,
-}
 
 
 @dataclass(frozen=True, slots=True)

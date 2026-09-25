@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """Environment-aware application settings."""
 
     app_name: str = "ProctorVision AI"
-    app_version: str = "0.3.0"
+    app_version: str = "0.4.0"
     model_path: Path = PROJECT_ROOT / "yolo11s.pt"
     database_path: Path = PROJECT_ROOT / "data" / "proctorvision.db"
     evidence_directory: Path = PROJECT_ROOT / "evidence"
@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     iou_threshold: float = 0.50
     device: str = "cpu"
     maximum_detections: int = 10
+    confirmation_window_frames: int = 5
+    confirmation_required_frames: int = 3
+    incident_clear_delay_seconds: float = 2.0
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
