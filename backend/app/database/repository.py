@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .models import Incident, MonitoringSession, utc_now
@@ -47,11 +47,27 @@ def get_monitoring_session(
     return database.get(MonitoringSession, session_id)
 
 
-def list_monitoring_sessions(database: Session) -> list[MonitoringSession]:
+def list_monitoring_sessions(
+    database: Session,
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[MonitoringSession]:
     statement = select(MonitoringSession).order_by(
         MonitoringSession.started_at.desc()
     )
+    if offset:
+        statement = statement.offset(offset)
+    if limit is not None:
+        statement = statement.limit(limit)
     return list(database.scalars(statement))
+
+
+def count_monitoring_sessions(database: Session) -> int:
+    """Return the number of persisted monitoring sessions."""
+
+    statement = select(func.count()).select_from(MonitoringSession)
+    return int(database.scalar(statement) or 0)
 
 
 def start_incident(

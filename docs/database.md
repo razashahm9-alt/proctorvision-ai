@@ -22,3 +22,17 @@ is still active is closed with the `Stopped` status.
 The database tables are created safely when FastAPI starts. Existing records
 are preserved because initialization uses SQLAlchemy `create_all` rather than
 dropping or recreating tables.
+
+## Session-review API
+
+Version 0.7.0 exposes the stored data without revealing local filesystem paths:
+
+- `GET /api/history/sessions` lists newest sessions first.
+- `GET /api/history/sessions/{session_id}` returns a complete incident timeline.
+- `GET /api/history/incidents/{incident_id}/evidence` serves an annotated image.
+- `GET /api/history/sessions/{session_id}/export.csv` downloads an Excel-friendly
+  UTF-8 CSV audit log.
+
+Evidence responses are restricted to files inside the configured evidence
+directory. Missing legacy evidence is reported in the UI without preventing
+the rest of the session from loading.

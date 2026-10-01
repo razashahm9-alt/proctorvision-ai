@@ -63,7 +63,7 @@ class MonitoringFrameState(BaseModel):
 
 @dataclass(slots=True)
 class DeviceTracker:
-    observations: deque[bool]
+    observations: deque[float]
     active_incident_id: str | None = None
     evidence_path: str = ""
     peak_confidence: float = 0.0
@@ -88,6 +88,10 @@ class IncidentEngine:
         evidence_directory: Path,
         confirmation_window: int = 5,
         confirmation_required: int = 3,
+        instant_confirmation_confidence: float = 0.80,
+        fast_confirmation_confidence: float = 0.55,
+        fast_confirmation_window: int = 3,
+        fast_confirmation_required: int = 2,
         clear_delay_seconds: float = 2.0,
     ) -> None:
         if confirmation_window < 1:
@@ -98,10 +102,34 @@ class IncidentEngine:
             )
         if clear_delay_seconds < 0:
             raise ValueError("clear_delay_seconds cannot be negative")
+        if not 0 < instant_confirmation_confidence <= 1:
+            raise ValueError(
+                "instant_confirmation_confidence must be within (0, 1]"
+            )
+        if not 0 < fast_confirmation_confidence <= 1:
+            raise ValueError(
+                "fast_confirmation_confidence must be within (0, 1]"
+            )
+        if fast_confirmation_confidence > instant_confirmation_confidence:
+            raise ValueError(
+                "fast_confirmation_confidence cannot exceed the instant threshold"
+            )
+        if not 1 <= fast_confirmation_window <= confirmation_window:
+            raise ValueError(
+                "fast_confirmation_window must be within confirmation_window"
+            )
+        if not 1 <= fast_confirmation_required <= fast_confirmation_window:
+            raise ValueError(
+                "fast_confirmation_required must be within fast_confirmation_window"
+            )
 
         self.database = database
         self.confirmation_window = confirmation_window
         self.confirmation_required = confirmation_required
+        self.instant_confirmation_confidence = instant_confirmation_confidence
+        self.fast_confirmation_confidence = fast_confirmation_confidence
+        self.fast_confirmation_window = fast_confirmation_window
+        self.fast_confirmation_required = fast_confirmation_required
         self.clear_delay_seconds = clear_delay_seconds
         self.evidence_writer = EvidenceWriter(evidence_directory)
         self.session: MonitoringSession | None = None
@@ -141,7 +169,9 @@ class IncidentEngine:
             tracker = self.trackers[device_key]
             summary = summaries.get(device_key)
             present = summary is not None
-            tracker.observations.append(present)
+            tracker.observations.append(
+                summary.confidence if summary is not None else 0.0
+            )
 
             if tracker.active_incident_id is not None:
                 if present and summary is not None:
@@ -170,10 +200,7 @@ class IncidentEngine:
                     )
                 continue
 
-            if (
-                summary is not None
-                and sum(tracker.observations) >= self.confirmation_required
-            ):
+            if summary is not None and self._should_confirm(tracker, summary):
                 event = self._start_incident(
                     device_key=device_key,
                     device_name=device_name,
@@ -244,6 +271,35 @@ class IncidentEngine:
             )
             for device_key, items in grouped.items()
         }
+
+    def _should_confirm(
+        self,
+        tracker: DeviceTracker,
+        summary: DeviceFrameSummary,
+    ) -> bool:
+        """Choose a safe confirmation path from confidence and recent history.
+
+        Very strong detections start immediately so an overloaded CPU cannot
+        delay an obvious violation for several frames. Strong detections use a
+        shorter two-of-three window, while ordinary accepted detections retain
+        the original three-of-five protection against false alerts.
+        """
+
+        if summary.confidence >= self.instant_confirmation_confidence:
+            return True
+
+        recent = list(tracker.observations)[-self.fast_confirmation_window :]
+        fast_hits = sum(
+            confidence >= self.fast_confirmation_confidence
+            for confidence in recent
+        )
+        if fast_hits >= self.fast_confirmation_required:
+            return True
+
+        standard_hits = sum(
+            confidence > 0 for confidence in tracker.observations
+        )
+        return standard_hits >= self.confirmation_required
 
     def _start_incident(
         self,

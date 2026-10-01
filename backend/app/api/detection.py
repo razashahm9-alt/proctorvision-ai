@@ -33,7 +33,7 @@ def load_model() -> ModelStatusResponse:
 
     try:
         detector.load()
-    except (FileNotFoundError, RuntimeError) as error:
+    except (FileNotFoundError, ImportError, RuntimeError, OSError) as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(error),
@@ -69,7 +69,7 @@ async def detect_frame(image: UploadFile = File(...)) -> FrameDetectionResponse:
 
     try:
         return detector.detect(frame)
-    except (FileNotFoundError, RuntimeError, ValueError) as error:
+    except (FileNotFoundError, ImportError, RuntimeError, ValueError) as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(error),

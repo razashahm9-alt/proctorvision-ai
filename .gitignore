@@ -1,52 +1,51 @@
-# Python environments
+# Python
 .venv/
-venv/
-env/
-
-# Python-generated files
 __pycache__/
 *.py[cod]
-*$py.class
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Environment variables and secrets
+# Environment and local secrets
 .env
 .env.*
 !.env.example
 
-# Runtime detection data
+# Runtime data and evidence
+data/
 evidence/
 logs/
+run/
 runs/
-
-# Generated recordings and databases
-*.avi
-*.mp4
+recordings/
+kernel.errors.txt
+*.log
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
-*.log
 
-# AI model weights
+# Generated model exports (rebuild with prepare_openvino.py)
+*_openvino_model/
 *.pt
 *.onnx
 *.engine
 
-# Frontend-generated files
+# Frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-# IDE and operating-system files
+# Editors and operating systems
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# Temporary files
-*.tmp
-*.temp
-*.bak
+# Local handover and media artifacts
+PHASE*_INSTALL.txt
+*.zip
+*.mp4
+*.avi
+*.webm

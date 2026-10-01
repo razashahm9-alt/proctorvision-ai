@@ -63,7 +63,7 @@ def device(
     )
 
 
-def test_phone_requires_three_of_five_frames_and_saves_evidence(
+def test_very_high_confidence_phone_confirms_first_frame_and_saves_evidence(
     database: Session, tmp_path: Path
 ) -> None:
     started = datetime(2026, 9, 25, 14, 0, 0)
@@ -75,30 +75,61 @@ def test_phone_requires_three_of_five_frames_and_saves_evidence(
     first = engine.process_frame(
         detection_result(phone), frame=frame, observed_at=started
     )
-    second = engine.process_frame(
-        detection_result(phone),
-        frame=frame,
-        observed_at=started + timedelta(milliseconds=200),
-    )
-    third = engine.process_frame(
-        detection_result(phone),
-        frame=frame,
-        observed_at=started + timedelta(milliseconds=400),
-    )
-
-    assert first.should_block_preview is False
-    assert second.play_alert_sound is False
-    assert third.should_block_preview is True
-    assert third.play_alert_sound is True
-    assert third.active_incidents[0].alert_message == "Mobile Phone Detected"
-    assert len(third.events) == 1
-    assert third.events[0].event_type == "started"
-    assert Path(third.events[0].evidence_path).is_file()
+    assert first.should_block_preview is True
+    assert first.play_alert_sound is True
+    assert first.active_incidents[0].alert_message == "Mobile Phone Detected"
+    assert len(first.events) == 1
+    assert first.events[0].event_type == "started"
+    assert Path(first.events[0].evidence_path).is_file()
 
     incidents = list_session_incidents(database, monitoring.id)
     assert len(incidents) == 1
     assert incidents[0].device_key == "cell phone"
     assert incidents[0].status == "Active"
+
+
+def test_strong_phone_uses_two_of_three_confirmation(
+    database: Session, tmp_path: Path
+) -> None:
+    started = datetime(2026, 9, 25, 14, 5, 0)
+    engine = IncidentEngine(database, evidence_directory=tmp_path)
+    engine.start(started_at=started)
+    phone = device("cell phone", "Mobile Phone", 0.72)
+
+    first = engine.process_frame(detection_result(phone), observed_at=started)
+    second = engine.process_frame(
+        detection_result(phone),
+        observed_at=started + timedelta(milliseconds=200),
+    )
+
+    assert first.should_block_preview is False
+    assert first.play_alert_sound is False
+    assert second.should_block_preview is True
+    assert second.play_alert_sound is True
+
+
+def test_lower_confidence_phone_retains_three_of_five_confirmation(
+    database: Session, tmp_path: Path
+) -> None:
+    started = datetime(2026, 9, 25, 14, 7, 0)
+    engine = IncidentEngine(database, evidence_directory=tmp_path)
+    engine.start(started_at=started)
+    phone = device("cell phone", "Mobile Phone", 0.50)
+
+    first = engine.process_frame(detection_result(phone), observed_at=started)
+    second = engine.process_frame(
+        detection_result(phone),
+        observed_at=started + timedelta(milliseconds=200),
+    )
+    third = engine.process_frame(
+        detection_result(phone),
+        observed_at=started + timedelta(milliseconds=400),
+    )
+
+    assert first.should_block_preview is False
+    assert second.should_block_preview is False
+    assert third.should_block_preview is True
+    assert third.play_alert_sound is True
 
 
 def test_active_incident_tracks_peak_and_resolves_after_delay(
@@ -107,7 +138,7 @@ def test_active_incident_tracks_peak_and_resolves_after_delay(
     started = datetime(2026, 9, 25, 14, 10, 0)
     engine = IncidentEngine(database, evidence_directory=tmp_path)
     monitoring = engine.start(started_at=started)
-    phone = device("cell phone", "Mobile Phone", 0.60)
+    phone = device("cell phone", "Mobile Phone", 0.50)
 
     for offset in (0.0, 0.2, 0.4):
         engine.process_frame(
@@ -148,21 +179,20 @@ def test_two_device_types_create_separate_incidents(
     engine = IncidentEngine(database, evidence_directory=tmp_path)
     monitoring = engine.start(started_at=started)
     result = detection_result(
-        device("cell phone", "Mobile Phone", 0.85),
+        device("cell phone", "Mobile Phone", 0.75),
         device("laptop", "Laptop / Computer", 0.76, x1=300),
     )
 
-    for offset in (0.0, 0.2):
-        state = engine.process_frame(
-            result,
-            observed_at=started + timedelta(seconds=offset),
-        )
-        assert state.play_alert_sound is False
+    first = engine.process_frame(
+        result,
+        observed_at=started,
+    )
     confirmed = engine.process_frame(
         result,
-        observed_at=started + timedelta(seconds=0.4),
+        observed_at=started + timedelta(seconds=0.2),
     )
 
+    assert first.play_alert_sound is False
     assert confirmed.play_alert_sound is True
     assert len(confirmed.active_incident_ids) == 2
     assert {event.device_key for event in confirmed.events} == {

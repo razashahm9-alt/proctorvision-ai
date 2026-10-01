@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import cv2
@@ -13,6 +14,7 @@ from starlette.websockets import WebSocketState
 
 from .detection import get_detector
 from ..core.config import settings
+from ..core.security import access_cookie_is_valid, websocket_origin_is_allowed
 from ..database.base import SessionLocal
 from ..services.incident_engine import IncidentEngine
 
@@ -34,6 +36,12 @@ def create_incident_engine(database) -> IncidentEngine:
         evidence_directory=settings.evidence_directory,
         confirmation_window=settings.confirmation_window_frames,
         confirmation_required=settings.confirmation_required_frames,
+        instant_confirmation_confidence=(
+            settings.instant_confirmation_confidence
+        ),
+        fast_confirmation_confidence=settings.fast_confirmation_confidence,
+        fast_confirmation_window=settings.fast_confirmation_window_frames,
+        fast_confirmation_required=settings.fast_confirmation_required_frames,
         clear_delay_seconds=settings.incident_clear_delay_seconds,
     )
 
@@ -126,12 +134,25 @@ async def handle_control_message(
 async def monitoring_websocket(websocket: WebSocket) -> None:
     """Analyze binary webcam frames and stream incident state as JSON."""
 
+    if not websocket_origin_is_allowed(
+        websocket.headers.get("origin"),
+        websocket.headers.get("host"),
+    ):
+        await websocket.close(code=1008, reason="WebSocket origin is not allowed.")
+        return
+    if not access_cookie_is_valid(
+        websocket.cookies.get(settings.access_cookie_name)
+    ):
+        await websocket.close(code=1008, reason="Supervisor access is required.")
+        return
+
     await websocket.accept()
     database = create_database_session()
     engine = create_incident_engine(database)
 
     try:
         monitoring_session = engine.start()
+        frame_sequence = 0
         await websocket.send_json(
             {
                 "type": "session_started",
@@ -149,6 +170,7 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
             control_payload = message.get("text")
 
             if frame_payload is not None:
+                processing_started = time.perf_counter()
                 if len(frame_payload) > settings.maximum_websocket_frame_bytes:
                     await send_error(
                         websocket,
@@ -175,9 +197,15 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
                     detection_result,
                     frame=frame,
                 )
+                frame_sequence += 1
                 await websocket.send_json(
                     {
                         "type": "frame_result",
+                        "sequence": frame_sequence,
+                        "server_processing_ms": round(
+                            (time.perf_counter() - processing_started) * 1000,
+                            2,
+                        ),
                         "detection": detection_result.model_dump(mode="json"),
                         "monitoring": monitoring_state.model_dump(mode="json"),
                     }
@@ -204,7 +232,7 @@ async def monitoring_websocket(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         pass
-    except (FileNotFoundError, RuntimeError, OSError) as error:
+    except (FileNotFoundError, ImportError, RuntimeError, OSError) as error:
         await send_error(
             websocket,
             code="monitoring_unavailable",

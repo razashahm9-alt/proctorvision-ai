@@ -23,6 +23,8 @@ class FrameDetectionResponse(BaseModel):
     image_width: int
     image_height: int
     inference_ms: float
+    runtime: str = "CPU"
+    model_name: str = "YOLO"
     detections: list[DetectionItem]
 
 
@@ -30,4 +32,9 @@ class ModelStatusResponse(BaseModel):
     loaded: bool
     model_path: str
     model_file_exists: bool
+    runtime: str
+    model_name: str
+    using_fallback: bool
+    preferred_model_path: str
+    warmup_ms: float | None
     required_classes: list[str]

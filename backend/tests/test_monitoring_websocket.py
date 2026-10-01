@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -19,6 +20,7 @@ from backend.app.database.repository import (
     list_monitoring_sessions,
     list_session_incidents,
 )
+from backend.app.core.security import build_access_cookie
 from backend.app.detection.schemas import (
     BoundingBox,
     DetectionItem,
@@ -126,11 +128,13 @@ def test_websocket_confirms_phone_and_finishes_session(
             responses.append(websocket.receive_json())
 
         assert responses[0]["type"] == "frame_result"
-        assert responses[0]["monitoring"]["should_block_preview"] is False
-        assert responses[2]["monitoring"]["should_block_preview"] is True
-        assert responses[2]["monitoring"]["play_alert_sound"] is True
+        assert responses[0]["sequence"] == 1
+        assert responses[0]["server_processing_ms"] >= 0
+        assert responses[0]["detection"]["runtime"] == "CPU"
+        assert responses[0]["monitoring"]["should_block_preview"] is True
+        assert responses[0]["monitoring"]["play_alert_sound"] is True
         assert (
-            responses[2]["monitoring"]["active_incidents"][0]["alert_message"]
+            responses[0]["monitoring"]["active_incidents"][0]["alert_message"]
             == "Mobile Phone Detected"
         )
 
@@ -198,3 +202,35 @@ def test_disconnect_automatically_finishes_session(
         assert len(sessions) == 1
         assert sessions[0].id == session_id
         assert sessions[0].status == "Completed"
+
+
+def test_websocket_requires_private_demo_cookie(
+    monkeypatch: pytest.MonkeyPatch,
+    database_factory,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        monitoring_api.settings,
+        "access_token",
+        "temporary-supervisor-token",
+    )
+    client = create_test_client(
+        monkeypatch,
+        database_factory,
+        tmp_path,
+        phone_result(),
+    )
+
+    with pytest.raises(WebSocketDisconnect) as blocked:
+        with client.websocket_connect("/api/ws/monitoring"):
+            pass
+    assert blocked.value.code == 1008
+
+    client.cookies.set(
+        monitoring_api.settings.access_cookie_name,
+        build_access_cookie("temporary-supervisor-token"),
+    )
+    with client.websocket_connect("/api/ws/monitoring") as websocket:
+        assert websocket.receive_json()["type"] == "session_started"
+        websocket.send_text(json.dumps({"type": "stop"}))
+        assert websocket.receive_json()["type"] == "session_finished"

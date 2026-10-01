@@ -1,0 +1,17 @@
+services:
+  proctorvision:
+    build:
+      context: .
+    image: proctorvision-ai:0.8.1
+    ports:
+      - "8000:8000"
+    environment:
+      PROCTORVISION_ACCESS_TOKEN: ${PROCTORVISION_ACCESS_TOKEN:-}
+      PROCTORVISION_SECURE_COOKIES: ${PROCTORVISION_SECURE_COOKIES:-false}
+      PROCTORVISION_CORS_ORIGINS: ${PROCTORVISION_CORS_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
+    volumes:
+      - proctorvision-storage:/app/storage
+    restart: unless-stopped
+
+volumes:
+  proctorvision-storage:

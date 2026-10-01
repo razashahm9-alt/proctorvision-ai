@@ -1,0 +1,2 @@
+# Official Ultralytics dependency set for OpenVINO export and inference.
+ultralytics[export-openvino]==8.4.159
